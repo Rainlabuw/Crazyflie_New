@@ -7,11 +7,8 @@ import numpy as np
 from nav_msgs.msg import Odometry
 from std_srvs.srv import Empty
 from example_interfaces.msg import String as RosString
-from .server_new_vel import CrazyflieServer
-from .server_new_vel import TrackingObject
 from .live_plotting import live_plotting_class
-# from .base_code import CrazyflieServer
-# from .base_code import TrackingObject
+from .server import CrazyflieServer, TrackingObject
 
 class crazyfliebridge(Node):
     def __init__(self):
@@ -51,7 +48,7 @@ class crazyfliebridge(Node):
 
     def publisher(self):
         self.count += 1
-        current_data = self.server.current().copy()
+        current_data = self.server.curr_data.copy()
         for cf in self.server.crazyflies:
             vicon_key = "vicon-" + cf.object_name
             if vicon_key in current_data:
