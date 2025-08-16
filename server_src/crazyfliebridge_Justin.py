@@ -8,7 +8,7 @@ from nav_msgs.msg import Odometry
 from std_srvs.srv import Empty
 from example_interfaces.msg import String as RosString
 from .live_plotting import live_plotting_class
-from .server import CrazyflieServer, TrackingObject
+from .server.server_new_vel import CrazyflieServer, TrackingObject
 
 class crazyfliebridge(Node):
     def __init__(self):
