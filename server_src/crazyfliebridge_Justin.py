@@ -8,7 +8,7 @@ from nav_msgs.msg import Odometry
 from std_srvs.srv import Empty
 from example_interfaces.msg import String as RosString
 from .live_plotting import live_plotting_class
-from .server.server_new_vel import CrazyflieServer, TrackingObject
+from .server_new.server_new_vel import TrackingObject,CrazyflieServer
 
 class crazyfliebridge(Node):
     def __init__(self):
@@ -16,8 +16,8 @@ class crazyfliebridge(Node):
         # Initialize Crazyflie server FIRST
         crazyflies = [
             TrackingObject("radio://0/80/2M/E7E7E7E7E7", "crazyflie7"),
-            # TrackingObject("radio://0/80/2M/E7E7E7E7E7", "crazyflie8"),
-            # TrackingObject( "radio://0/80/2M/E7E7E7E7E9", "crazyflie9" ),
+            # TrackingObject("radio://0/80/2M/E7E7E7E7E8", "crazyflie8"),
+            TrackingObject( "radio://0/80/2M/E7E7E7E7E9", "crazyflie9" ),
         ]
         self.cf_list = []  ## name list
         for cf in crazyflies:
@@ -48,6 +48,7 @@ class crazyfliebridge(Node):
 
     def publisher(self):
         self.count += 1
+        # current_data = self.server.current().copy()
         current_data = self.server.curr_data.copy()
         for cf in self.server.crazyflies:
             vicon_key = "vicon-" + cf.object_name
@@ -71,8 +72,8 @@ class crazyfliebridge(Node):
 
                 self.plotting.history_updt() ## update the data to history
                 self.pubs[cf.object_name].publish(odom_msg)
-                if self.count % 10 == 0:
-                    self.get_logger().info(f"Published odom for {cf.object_name}, (x,y,z,q) = ({pos_data})")
+                # if self.count % 10 == 0:
+                #     self.get_logger().info(f"Published odom for {cf.object_name}, (x,y,z,q) = ({pos_data})")
 
     def subscriber(self, msg):
         cf = msg.header.frame_id

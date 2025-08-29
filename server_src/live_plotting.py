@@ -170,3 +170,4 @@ class live_plotting_class:
 
             fig.canvas.flush_events()
 
+
