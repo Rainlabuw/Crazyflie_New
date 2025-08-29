@@ -7,21 +7,31 @@ data_length = 20
 duration = 120.0
 ## controller gains and limits
 ################### Position controller
-P_kp = 0.7
+P_kp = 1.0
 P_kd = 0.0
-v_max = 0.5
+v_max = 0.25
 
 ## room dimensions
-x_max = 1
-x_min = -1
-y_max = 1
-y_min = -0.1
+x_max = 0.9
+x_min = -0.6
+y_max = 0.9
+y_min = -0.6
 z_max = 1.5
-z_min = 0.1
+z_min = 0.0
 
-## static obstacles
-R_obs = 0.5
-X_obs = np.array([0.5, 0.5, 0.5])
+
+## quad
+R_quad = 0.2
+
+## static obs
+R_obs = np.array([0.2,0.2])
+num_obs = len(R_obs)
+# R_obs = 0.3
+X_obs = np.array([[0.5, 0.7, 0.4],
+                  [0.3, .0, .5]])
+
+
+
 
 ## CBF parameters
 a = 1.2
