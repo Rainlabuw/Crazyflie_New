@@ -56,11 +56,11 @@ class CrazyflieServer:
         log_config.add_variable('stateEstimate.y', 'float')
         log_config.add_variable('stateEstimate.z', 'float')
 
-        log_config2 = LogConfig(name="att_est", period_in_ms=10)
-        log_config2.add_variable('stateEstimate.qx', 'float')
-        log_config2.add_variable('stateEstimate.qy', 'float')
-        log_config2.add_variable('stateEstimate.qz', 'float')
-        log_config2.add_variable('stateEstimate.qw', 'float')
+        # log_config2 = LogConfig(name="att_est", period_in_ms=10)
+        # log_config2.add_variable('stateEstimate.qx', 'float')
+        # log_config2.add_variable('stateEstimate.qy', 'float')
+        # log_config2.add_variable('stateEstimate.qz', 'float')
+        # log_config2.add_variable('stateEstimate.qw', 'float')
 
         log_config3 = LogConfig(name="euler_est", period_in_ms=10)
         log_config3.add_variable('stateEstimate.vx', 'float')
@@ -71,7 +71,7 @@ class CrazyflieServer:
             print(f"Connecting crazyflie {cf.object_name} to radio: {cf.uri}")
             cf.cf = Crazyflie()
             cf.cflog_pos = SyncLogger(cf.cf, log_config)
-            cf.cflog_att = SyncLogger(cf.cf, log_config2)
+            # cf.cflog_att = SyncLogger(cf.cf, log_config2)
             cf.cflog_vel = SyncLogger(cf.cf, log_config3)
             cf.cf.open_link(cf.uri)
         time.sleep(1.0)
@@ -115,7 +115,6 @@ class CrazyflieServer:
                     cf.var_history[1][iteration] = data['kalman.varPY'];
                     cf.var_history[2][iteration] = data['kalman.varPZ'];
                     threshold = 0.01
-                    threshold = 1
                     print(f"Kalman variance: {numpy.amax(cf.var_history) - numpy.amin(cf.var_history)}")
                     if (numpy.amax(cf.var_history) - numpy.amin(cf.var_history)) > threshold:
                         var_active = True
@@ -129,7 +128,7 @@ class CrazyflieServer:
         time.sleep(1.0)
         for cf in self.crazyflies:
             cf.cflog_pos.connect()
-            cf.cflog_att.connect()
+            # cf.cflog_att.connect()
             cf.cflog_vel.connect()
             cf.cf.platform.send_arming_request(True)
 
@@ -155,7 +154,7 @@ class CrazyflieServer:
             self.mover[cf][-1] = 1.0  ## scaler quaternion
             self.mover_history[cf] = np.zeros((const.data_length, const.m))
             self.hover[cf] = np.zeros(3)
-            self.hover_flag[cf] = False
+            self.hover_flag[cf] = True
             self.data_history[cf] = np.zeros((const.data_length, 13))
             self.error_history[cf] = np.zeros((const.data_length, 13))
 

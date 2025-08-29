@@ -79,12 +79,12 @@ class EKF_class:
                                            pos_data['stateEstimate.z']])
                     break
 
-                for log_att_entry in cf.cflog_att:
-                    att_data = log_att_entry[1]
-                    state[3:7] = np.array([att_data['stateEstimate.qx'],
-                                           att_data['stateEstimate.qy'],
-                                           att_data['stateEstimate.qz'],
-                                           att_data['stateEstimate.qw']])
+                # for log_att_entry in cf.cflog_att:
+                #     att_data = log_att_entry[1]
+                #     state[3:7] = np.array([att_data['stateEstimate.qx'],
+                #                            att_data['stateEstimate.qy'],
+                #                            att_data['stateEstimate.qz'],
+                #                            att_data['stateEstimate.qw']])
                     break
                 # print(state)
                 for log_vel_entry in cf.cflog_vel:
@@ -114,19 +114,25 @@ class CFlib_class:
     def pos_controller(self, cf):
         name = cf.object_name
         pos_history = self.server.data_history[name][:, 0:3]
+        print(self.server.mover[name])
         # print(pos_history[-1])
         if self.server.hover_flag[name] == True:
-            wps = np.array([0.0, 0.0, 0.5])
-            # print("Hovering")
+            if name == "crazyflie7":
+                wps = np.array([0.0, 0.0, 0.4])
+            elif name == "crazyflie8":
+                wps = np.array([0.0, 0.0, 0.4])
+            else:
+                wps = np.array([0.8, 0.0, 0.4])
+            print("Hovering",wps)
         else:
             wps = self.server.mover[name][0:3]
-            # print("Normal flight, wps:  ",wps)
+            print("Normal flight, wps:  ",wps)
         ## update the error data
         self.server.error_history[name][0:const.data_length - 1] = self.server.error_history[name][1:const.data_length]
         self.server.error_history[name][-1, 0:3] = wps - pos_history[-1]
-        v_des = compute_velocity(pos_history[-1],self.server.error_history,name)
-        print("vdes:    ",v_des)
-        # cf.cf.commander.send_velocity_world_setpoint(v_des[0], v_des[1], v_des[2], 0)
+        v_des = compute_velocity(pos_history[-1],self.server.error_history,name,self.server.data_history)
+        # if name == "crazyflie7":
+        cf.cf.commander.send_velocity_world_setpoint(v_des[0], v_des[1], v_des[2], 0)
         # print("cmd_vel: ",name,v_des)
         return v_des
 
@@ -142,7 +148,7 @@ class CFlib_class:
             self.server.time_list_control[0:9] = self.server.time_list_control[1:10]
             self.server.time_list_control[9] = float(t_control)
             dt_control = (self.server.time_list_control[9] - self.server.time_list_control[0]) / 10
-
+            # print("controller dt:   ", dt_control)
             ## close the system and save
             if t_control - self.server.start_time >= const.duration:
                 self.server.close()
@@ -153,7 +159,7 @@ class CFlib_class:
             # if count % self.print_t ==0:
             #     print("control dt:  ", dt_control)
             # time.sleep(0.01)
-            time.sleep(0.02)
+            time.sleep(0.01)
             current_pos = self.server.curr_data.copy()
             for cf in self.server.crazyflies:
                 self.server.mover_history[cf.object_name][0:const.data_length - 1] = self.server.mover_history[cf.object_name][
@@ -162,12 +168,13 @@ class CFlib_class:
                 current_pos_i = current_pos["vicon-" + cf.object_name][1:4]
                 self.server.data_history[cf.object_name][-1, 0:3] = current_pos_i
                 self.server.mover[cf.object_name] = box_constratins(self.server.mover[cf.object_name])
-                print(self.server.mover[cf.object_name])
+                # print(self.server.mover[cf.object_name])
                 q_i = self.server.mover[cf.object_name][3:7]
                 euler_i = q2e(q_i)
                 yaw_i = euler_i[-1]
                 yaw_i = 0  ## set to 0 for test
                 if self.server.mover[cf.object_name][2] == 0:  ## Hover (no cmd received or computing)
+                    print("hover")
                     ## in optimization code, send zeros when computing to enable hover
 
                     if self.server.hover_flag[cf.object_name] == False:
