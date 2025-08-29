@@ -30,8 +30,7 @@ class plotting_server:
         self.traj_all = {}
         self.target_click = {}
         self.history = {}
-        self.target_flags = False
-        self.target_click = {}
+        self.target_flags = {}
         self.opt_flag = False
         self.click_count = 0
         self.t0 = time.time()
@@ -47,6 +46,7 @@ class plotting_server:
         for cf in self.cf_list:
             self.data[cf] = np.zeros(6)
             self.history[cf] = np.zeros((data_len, 6))
+            self.target_flags[cf] = False
 
     @threaded
     def update(self):
@@ -67,12 +67,12 @@ class plotting_server:
 
         # add two spheres at different centers
         u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:15j]
-        r = 0.6  # sphere radius
+        r = 0.2  # sphere radius
 
         # define your two centers
         centers = [
-            (0.5, 0.6, 0.3),  # sphere #1 at (0.5, 0, 0.5)
-            (3, .5, .5)  # sphere #2 at (-0.5, 0.3, 0.2)
+            (0.5, 0.7, 0.4),  # sphere #1 at (0.5, 0, 0.5)
+            (0.3, .0, .5)  # sphere #2 at (-0.5, 0.3, 0.2)
         ]
 
         for (cx, cy, cz) in centers:
@@ -124,11 +124,12 @@ class plotting_server:
             self.time_list[0:data_len - 1] = self.time_list[1:data_len]
             self.time_list[data_len - 1] = time.time() - self.t0
             # print(self.time_list)
-            self.ax.set_xlim([-0.1, 1.5])
-            self.ax.set_ylim([-0.1, 1.5])
+            self.ax.set_xlim([-0.6, 1.5])
+            self.ax.set_ylim([-0.6, 1.5])
 
-            self.ax1.set_xlim([-0.1, 1.5])
-            self.ax1.set_ylim([-0.1, 1.5])
+            self.ax1.set_xlim3d(-0.6, 1.0)
+            self.ax1.set_ylim3d(-0.6, 1.0)
+            self.ax1.set_zlim3d(0.0, 1.0)
 
             x_traj = {}
             y_traj = {}
@@ -138,19 +139,23 @@ class plotting_server:
                 x_traj[cf] = self.history[cf][:, 0]
                 y_traj[cf] = self.history[cf][:, 1]
                 z_traj[cf] = self.history[cf][:, 2]
+                ## plotting pos data
                 pos_data_all[cf].set_data(x_traj[cf], y_traj[cf])
                 pos_data_all[cf].set_3d_properties(z_traj[cf])
+                pos_data_all_2d[cf].set_data(x_traj[cf], y_traj[cf])
+                ## plotting trajectory
                 if self.traj_all != {}:
                     traj_all[cf].set_data(self.traj_all[cf][:, 0],self.traj_all[cf][:, 1])
                     traj_all[cf].set_3d_properties(self.traj_all[cf][:,2])
-                if self.target_flags == True: ## plot des pos
+
+                ## plotting desired position
+                if self.target_flags[cf] == True: ## plot des pos
                     target_all[cf].set_data([self.target_click[cf][0]], [self.target_click[cf][1]])
                     target_all[cf].set_3d_properties([0.5])
-                pos_data_all_2d[cf].set_data(x_traj[cf], y_traj[cf])
-                if self.target_flags == True:
+
+                if self.target_flags[cf] == True:
                     target_all_2d[cf].set_data([self.target_click[cf][0]], [self.target_click[cf][1]])
-                # x_vel[cf] = self.history[cf][:, 0]
-                # vel_all[cf].set_data(self.time_list, x_vel[cf])
+
 
             if blit:
                 # restore background
@@ -177,12 +182,12 @@ class plotting_server:
             z = 0.0
             cf = self.cf_list[self.click_count % len(self.cf_list)]
             self.target_click[cf] = np.array([x, y, z])
+            self.target_flags[cf] = True
             self.click_count += 1
             # send back to client
             if self.click_count == self.num_cf:
                 self.opt_flag = True
                 print(f"Clicked for {cf}: {self.target_click[cf]}")
-            ## reset the click count
-            if self.click_count == self.num_cf:
-                self.target_flags = True
+                ## reset the click count
                 self.click_count = 0
+

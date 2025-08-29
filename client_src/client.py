@@ -1,188 +1,158 @@
-import time
-import numpy
-import threading
-from threading import Thread
 import numpy as np
-import math
-from numpy import linalg as LA
 
-import matplotlib.pyplot as plt
+import threading
+import time
+from threading import Thread, Event
+import multiprocessing as mp
+from .live_plotting import plotting_server
+from .single_scvx_calss import optmization_template
+
+
+def traj_opt_pair(args):
+    x_ini, x_des, cf_names = args
+    return optmization_template(x_ini, x_des, cf_names).X_traj
 
 
 def threaded(fn):
-    def wrapper(*a, **k):
-        t = Thread(target=fn, args=a, kwargs=k, daemon=False)
-        t.start();
-        return t
+    def wrapper(*args, **kwargs):
+        thread = Thread(target=fn, args=args, kwargs=kwargs)
+        thread.start()
+        return thread
 
     return wrapper
 
 
-data_len = 50
-
-
-class plotting_server:
+class client_main:
     def __init__(self, cf_list):
+        self.plotting = plotting_server(cf_list)
+        self.pool = mp.Pool(processes=2)  ## spawn two workers
         self.cf_list = cf_list
-        self.num_cf = len(cf_list)
-        print(cf_list)
-        self.data = {}
+        self.cf_mover = {}
+        self.johnny_data = {}
+        self.state = {}
+        self.target = {}
+        self.target_buffer = {}
+        self.state_history = {}
+        self.data_length = 20
         self.traj_all = {}
-        self.target_click = {}
-        self.history = {}
-        self.target_flags = False
-        self.target_click = {}
-        self.opt_flag = False
-        self.click_count = 0
-        self.t0 = time.time()
-        self.time_list = np.zeros(data_len)
+        self.traj_T = 51
+        self.traj_flag = {}
+        self.send_count = 0
+        self.traj_t0 = 0.0
+        self.traj_time_series = np.linspace(0, 2, self.traj_T)
 
-        # self.fake_gen()
+        self.ini_flag = False
         self.init()
+        time.sleep(0.5)
+        self.listen_target()
+        self.t0 = time.time()
+        # self.fake_gen()
+
         self.update()
-        self.live_plot()
-        plt.ion()
+        self.send_data()
 
     def init(self):
         for cf in self.cf_list:
-            self.data[cf] = np.zeros(6)
-            self.history[cf] = np.zeros((data_len, 6))
+            self.cf_mover[cf] = np.zeros(3)
+            self.state[cf] = np.zeros(3)
+            self.traj_all[cf] = np.zeros((self.traj_T, 3))
+            self.state_history[cf] = np.zeros((self.data_length, 3))
+            self.traj_flag[cf] = False
+        self.ini_flag = True
+
+    # @threaded
+    # def fake_gen(self):
+    #     while True:
+    #         time.sleep(0.01)
+    #         t_elp = time.time() - self.t0
+    #         count = 0
+    #         for cf in self.cf_list:
+    #             self.state[cf] = np.array([np.sin(t_elp) * 0.1, 1.0+np.cos(t_elp)*0.1, 0.7+ count])
+    #             count += 0.2
 
     @threaded
     def update(self):
         while True:
-            time.sleep(0.01)
-            # shift history buffers
+            time.sleep(0.02)
             for cf in self.cf_list:
-                self.history[cf][:-1] = self.history[cf][1:]
-                self.history[cf][-1] = self.data[cf]
-                # print("plotting",self.data[cf][0:3])
+                self.state_history[cf][0:self.data_length - 1] = self.state_history[cf][1:self.data_length]
+                self.state_history[cf][-1] = self.state[cf]
+                self.plotting.data[cf] = np.hstack((self.state[cf], np.zeros(3)))
+                # print("client",self.state[cf][0:3])
+            # push your current state to the plot‐process
+            # make a shallow‐copied dict so pickling is safe
+            # print(self.state_queue)
 
     @threaded
-    def live_plot(self, blit=False):
+    def listen_target(self):
+        while True:
+            time.sleep(0.1)
+            if self.plotting.opt_flag == True:  ## only update data when opt_flag is triggered
+                self.target = self.plotting.target_click
+                print("clicked")
+                for cf in self.cf_list:
+                    self.target[cf][2] = 0.4
+                print("Client received targets:", self.target)
+                self.opt()
 
-        fig = plt.figure(figsize=(10, 5))
-        self.ax1 = fig.add_subplot(1, 2, 1, projection='3d')
-        self.ax = fig.add_subplot(1, 2, 2)
-
-        # add two spheres at different centers
-        u, v = np.mgrid[0:2 * np.pi:30j, 0:np.pi:15j]
-        r = 0.6  # sphere radius
-
-        # define your two centers
-        centers = [
-            (0.5, 0.6, 0.3),  # sphere #1 at (0.5, 0, 0.5)
-            (3, .5, .5)  # sphere #2 at (-0.5, 0.3, 0.2)
-        ]
-
-        for (cx, cy, cz) in centers:
-            ## 3d spheres
-            xs = cx + r * np.cos(u) * np.sin(v)
-            ys = cy + r * np.sin(u) * np.sin(v)
-            zs = cz + r * np.cos(v)
-            self.ax1.plot_surface(xs, ys, zs,
-                                  color='orange',
-                                  alpha=0.4,
-                                  linewidth=0,
-                                  shade=True)
-            ## 2d circles
-            xs_2d = cx + r * np.cos(u)
-            ys_2d = cy + r * np.sin(u)
-            self.ax.plot(xs_2d,ys_2d)
-
-
-
-        pos_data_all = {}
-        target_all = {}
-        traj_all = {}
-        pos_data_all_2d = {}
-        target_all_2d = {}
+    def opt(self):
         for cf in self.cf_list:
-            pos_data_all[cf], = self.ax1.plot([], [], [], 'g.', lw=3)
-            target_all[cf], = self.ax1.plot([], [], [], 'r.', lw=3)
-            traj_all[cf], = self.ax1.plot([], [], [], 'b.', lw=3)
-            pos_data_all_2d[cf], = self.ax.plot([], [], 'g.', lw=3)
-            target_all_2d[cf], = self.ax.plot([], [], 'r.', lw=3)
+            self.traj_flag[cf] = False
+        print("opt being, enter hovering")
+        x_ini_all = self.state.copy()
+        x_des_all = self.target.copy()
 
-        # set up click‐handler
-        fig.canvas.mpl_connect('button_press_event', self.onclick)
+        # run async
+        sol = self.pool.apply_async(traj_opt_pair, args=((x_ini_all, x_des_all, self.cf_list),))
+        # get result
+        self.traj_all = sol.get()  # blocks until done
+        # time.sleep(1.0)
+        self.plotting.traj_all = self.traj_all
+        for cf in self.cf_list:
+            self.traj_flag[cf] = True
+        self.traj_t0 = time.time()
+        self.plotting.opt_flag = False
+        print("opt finished, execute")
 
-        self.ax1.set_xlabel('X')
-        self.ax1.set_ylabel('Y')
+    @threaded
+    def send_data(self):
+        while True:
+            time.sleep(0.02)
+            if self.ini_flag == True:
+                self.send_count += 1
+                for cf in self.cf_list:
+                    if self.traj_flag[cf] == True:
+                        traj_time = time.time() - self.traj_t0
+                        wps_idx = np.argmin(np.abs(self.traj_time_series - traj_time))  ## current wps index
+                        if wps_idx > self.traj_T - 1:
+                            wps_idx = self.traj_T - 1
+                        self.cf_mover[cf] = self.traj_all[cf][wps_idx]
+                        if self.send_count % 10 == 0:
+                            print("Cmd pos to:", cf, np.round(self.cf_mover[cf], 2))
+                    elif self.johnny_data != {}:
+                        # self.traj_flag[cf] = True
+                        ## chase johnny
+                        johnny_all = []
+                        for johnny in self.johnny_data:
+                            johnny_all.append(johnny)
+                        self.cf_mover[cf] = np.hstack((self.johnny_data[johnny_all[0]],np.zeros(6)))
+                        self.cf_mover[cf][2] = 0.4
+                        if self.send_count % 10 == 0:
+                            print("Cmd pos to:", cf, np.round(self.cf_mover[cf], 2))
+                    else:
+                        ## hover
+                        if self.target != {}:
+                            self.cf_mover[cf] = self.target[cf]
+                        else:
+                            if cf == "crazyflie7":
+                                self.cf_mover[cf] = np.array([0., 0., 0.4])
+                            elif cf == "crazyflie8":
+                                self.cf_mover[cf] = np.array([0.0, 0., 0.4])
+                            else:
+                                self.cf_mover[cf] = np.array([0.8, 0., 0.4])
+                        if self.send_count % 10 == 0:
+                            print("Hovering cmd to:", self.cf_mover[cf])
 
-        fig.canvas.draw()  # note that the first draw comes before setting data
-
-        if blit:
-            # cache the background
-            ax1background = fig.canvas.copy_from_bbox(self.ax1.bbox)
-
-        plt.show(block=False)
-
-        # for i in np.arange(10000):
-        while (True):
-            time.sleep(0.01)
-            self.time_list[0:data_len - 1] = self.time_list[1:data_len]
-            self.time_list[data_len - 1] = time.time() - self.t0
-            # print(self.time_list)
-            self.ax.set_xlim([-0.1, 1.5])
-            self.ax.set_ylim([-0.1, 1.5])
-
-            self.ax1.set_xlim([-0.1, 1.5])
-            self.ax1.set_ylim([-0.1, 1.5])
-
-            x_traj = {}
-            y_traj = {}
-            z_traj = {}
-            x_vel = {}
-            for cf in self.cf_list:
-                x_traj[cf] = self.history[cf][:, 0]
-                y_traj[cf] = self.history[cf][:, 1]
-                z_traj[cf] = self.history[cf][:, 2]
-                pos_data_all[cf].set_data(x_traj[cf], y_traj[cf])
-                pos_data_all[cf].set_3d_properties(z_traj[cf])
-                if self.traj_all != {}:
-                    traj_all[cf].set_data(self.traj_all[cf][:, 0],self.traj_all[cf][:, 1])
-                    traj_all[cf].set_3d_properties(self.traj_all[cf][:,2])
-                if self.target_flags == True: ## plot des pos
-                    target_all[cf].set_data([self.target_click[cf][0]], [self.target_click[cf][1]])
-                    target_all[cf].set_3d_properties([0.5])
-                pos_data_all_2d[cf].set_data(x_traj[cf], y_traj[cf])
-                if self.target_flags == True:
-                    target_all_2d[cf].set_data([self.target_click[cf][0]], [self.target_click[cf][1]])
-                # x_vel[cf] = self.history[cf][:, 0]
-                # vel_all[cf].set_data(self.time_list, x_vel[cf])
-
-            if blit:
-                # restore background
-                fig.canvas.restore_region(ax1background)
-
-                # redraw just the points
-                # ax1.draw_artist(line1)
-
-                # coords = plt.ginput(5)
-                # fill in the axes rectangle
-                fig.canvas.blit(self.ax1.bbox)
-
-
-            else:
-
-                fig.canvas.draw()
-
-            fig.canvas.flush_events()
-
-    def onclick(self, event):
-        # only record clicks on the 3D axes
-        if event.inaxes is self.ax:
-            x, y = event.xdata, event.ydata
-            z = 0.0
-            cf = self.cf_list[self.click_count % len(self.cf_list)]
-            self.target_click[cf] = np.array([x, y, z])
-            self.click_count += 1
-            # send back to client
-            if self.click_count == self.num_cf:
-                self.opt_flag = True
-                print(f"Clicked for {cf}: {self.target_click[cf]}")
-            ## reset the click count
-            if self.click_count == self.num_cf:
-                self.target_flags = True
-                self.click_count = 0
+# if __name__ == '__main__':
+#     cf_list = ["cf01","cf02"]
+#     cf = client_main(cf_list)
